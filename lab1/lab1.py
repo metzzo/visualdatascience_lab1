@@ -1,7 +1,13 @@
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+
 import pandas as pd
 import numpy as np
 
 import pickle
+from sklearn.cluster import AffinityPropagation
+from sklearn.preprocessing import StandardScaler
+
 
 def load_dataset(path="../../nutritions.csv"):
     dataset = pd.read_csv(
@@ -23,45 +29,74 @@ def load_dataset(path="../../nutritions.csv"):
 
 
 def extract_categories(dataset):
-    category_sizes = {}
+    category_set = set()
 
     def extract_categories_per_row(row):
         categories = row['Shrt_Desc'].split(',')
         for category in categories:
-            if category not in category_sizes:
-                category_sizes[category] = 1
-            else:
-                category_sizes[category] += 1
+            if category not in category_set:
+                category_set.add(category)
 
     print("Extracting Categories")
     dataset.apply(extract_categories_per_row, axis=1)
-    print("Extracting successful, No. of Categories: {}".format(len(category_sizes.keys())))
+    print("Extracting successful, No. of Categories: {}".format(len(category_set)))
 
-    #print("Filter out categories which are underrepresented")
-    #threshold = 5
-    #filtered_categories = {k: v for k, v in category_sizes.items() if v > threshold}
-    #print("Threshold for filtering {0}, new size {1}".format(threshold, len(filtered_categories.keys())))
-
-    categories = list(category_sizes.keys())
-    print("Create labels_true")
+    categories = list(category_set)
+    print("Create Labels")
 
     def create_labels(row):
         local_categories = row['Shrt_Desc'].split(',')
-        data = {key: key in local_categories for key in categories}
+        data = {key: float(key in local_categories) for key in categories}
         return pd.Series(data)
 
-    labels_true = dataset.apply(create_labels, axis=1)
+    labels = dataset.apply(create_labels, axis=1)
     print("Finished creating labels")
 
-    return categories, labels_true
+    return categories, labels
 
-def statistical_clustering_by_energy(dataset, labels_true):
-    from sklearn.cluster import AffinityPropagation
-    clustering = AffinityPropagation().fit(
-        X=dataset['Energ_Kcal'].values.reshape(-1, 1)
+
+def statistical_clustering_by_energy(dataset, labels):
+    labels['Energ_Kcal'] = dataset['Energ_Kcal']
+    X = StandardScaler().fit_transform(labels.values)
+
+    pca = PCA(n_components=2)
+    principalComponents = pca.fit_transform(X)
+    principalDf = pd.DataFrame(data=principalComponents,
+                               columns=['principal component 1', 'principal component 2'])
+
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.set_xlabel('Principal Component 1', fontsize=15)
+    ax.set_ylabel('Principal Component 2', fontsize=15)
+    ax.set_title('2 component PCA', fontsize=20)
+
+    ax.scatter(
+        principalDf['principal component 1'],
+        principalDf['principal component 2'],
+        s=50
     )
-    print(clustering.labels)
 
+    ax.grid()
+    plt.show()
+    plt.waitforbuttonpress()
+
+    """
+    clustering = AffinityPropagation().fit(
+        X=X
+    )
+    plt.figure(1)
+    plt.clf()
+    plt.imshow(Z, interpolation='nearest',
+               extent=(xx.min(), xx.max(), yy.min(), yy.max()),
+               cmap=plt.cm.Paired,
+               aspect='auto', origin='lower')
+
+    plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
+
+    plt.ylim(y_min, y_max)
+    plt.xticks(())
+    plt.yticks(())
+    plt.show()"""
 
 
 ds = load_dataset()
@@ -74,6 +109,6 @@ except:
     data = extract_categories(dataset=ds)
     pickle.dump(data, open("categories.p", "wb"))
 
-_, labels_true = data
+_, labels = data
 
-statistical_clustering_by_energy(dataset=ds, labels_true=labels_true)
+statistical_clustering_by_energy(dataset=ds, labels=labels)
