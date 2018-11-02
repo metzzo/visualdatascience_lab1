@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 import pickle
-from sklearn.cluster import AffinityPropagation
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
 
@@ -55,30 +55,33 @@ def extract_categories(dataset):
     return categories, labels
 
 
-def statistical_clustering_by_energy(dataset, labels):
+def statistical_clustering_by_energy(dataset, labels, categories):
+    print("Run Clustering")
     labels['Energ_Kcal'] = dataset['Energ_Kcal']
-    X = StandardScaler().fit_transform(labels.values)
-
-    pca = PCA(n_components=2)
-    principalComponents = pca.fit_transform(X)
-    principalDf = pd.DataFrame(data=principalComponents,
-                               columns=['principal component 1', 'principal component 2'])
-
-    fig = plt.figure(figsize=(8, 8))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.set_xlabel('Principal Component 1', fontsize=15)
-    ax.set_ylabel('Principal Component 2', fontsize=15)
-    ax.set_title('2 component PCA', fontsize=20)
-
-    ax.scatter(
-        principalDf['principal component 1'],
-        principalDf['principal component 2'],
-        s=50
+    #X = StandardScaler().fit_transform(labels.values)
+    #print(*X[0])
+    X = labels.values
+    clustering = KMeans(
+        init='k-means++',
+        n_clusters=3,
+        n_init=10,
+        random_state=42
+    ).fit(
+        X=X
     )
+    clusters = {
+        0: 'Low calories',
+        1: 'Medium calories',
+        2: 'High calories'
+    }
 
-    ax.grid()
-    plt.show()
-    plt.waitforbuttonpress()
+    for index, assigned_cluster in enumerate(clustering.labels_):
+        cluster = clusters[assigned_cluster]
+        original_category = dataset['Shrt_Desc'].iloc[index]
+        calories = dataset['Energ_Kcal'].iloc[index]
+        print("Cluster {0} for {1} with calories {2}".format(cluster, original_category, calories))
+
+    print(clustering.n_iter_)
 
     """
     clustering = AffinityPropagation().fit(
@@ -109,6 +112,6 @@ except:
     data = extract_categories(dataset=ds)
     pickle.dump(data, open("categories.p", "wb"))
 
-_, labels = data
+categories, labels = data
 
-statistical_clustering_by_energy(dataset=ds, labels=labels)
+statistical_clustering_by_energy(dataset=ds, labels=labels, categories=categories)
