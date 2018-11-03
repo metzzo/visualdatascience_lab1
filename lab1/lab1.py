@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 
 import pandas as pd
 import numpy as np
@@ -21,10 +20,6 @@ def load_dataset(path="../../nutritions.csv"):
     dataset.replace('', np.nan, inplace=True)
     dataset.dropna(inplace=True)
 
-    def normalize_row(row):
-        return row.strip()
-    dataset['Shrt_Desc'] = dataset['Shrt_Desc'].apply(normalize_row)
-
     return dataset
 
 
@@ -34,8 +29,7 @@ def extract_categories(dataset):
     def extract_categories_per_row(row):
         categories = row['Shrt_Desc'].split(',')
         for category in categories:
-            if category not in category_set:
-                category_set.add(category)
+            category_set.add(category)
 
     print("Extracting Categories")
     dataset.apply(extract_categories_per_row, axis=1)
@@ -55,63 +49,92 @@ def extract_categories(dataset):
     return categories, labels
 
 
-def statistical_clustering_by_energy(dataset, labels, categories):
+def calculate_average_energy_per_category(dataset, labels, categories):
+    energy_data = {value: (value, 0, 0) for value in categories}
+    print("Calculate Averages")
+
+    for i in range(0, len(dataset)):
+        row = dataset.iloc[i]
+        labels_row = labels.iloc[i]
+        energy = row['Energ_Kcal']
+        for category in categories:
+            if labels_row[category]:
+                data = energy_data[category]
+                data = (
+                    data[0],
+                    data[1] + energy,
+                    data[2] + 1
+                )
+                energy_data[category] = data
+    df = pd.DataFrame.from_dict(energy_data, orient='index')
+    df['average'] = df[1] / df[2]
+    return df
+
+
+def statistical_clustering_by_energy(averages):
     print("Run Clustering")
-    labels['Energ_Kcal'] = dataset['Energ_Kcal']
+
+    # this causes K-Means to perform very badly
     #X = StandardScaler().fit_transform(labels.values)
     #print(*X[0])
-    X = labels.values
+
+    X = averages['average'].values.reshape(-1,1)
     clustering = KMeans(
         init='k-means++',
-        n_clusters=3,
-        n_init=10,
+        n_clusters=4,
+        n_init=100,
         random_state=42
     ).fit(
         X=X
     )
     clusters = {
-        0: 'Low calories',
-        1: 'Medium calories',
-        2: 'High calories'
+        2: 'Low calories',
+        0: 'Medium-low calories',
+        1: 'Medium-high calories',
+        3: 'High calories',
     }
 
     for index, assigned_cluster in enumerate(clustering.labels_):
         cluster = clusters[assigned_cluster]
-        original_category = dataset['Shrt_Desc'].iloc[index]
-        calories = dataset['Energ_Kcal'].iloc[index]
+        original_category = averages[0].iloc[index]
+        calories = averages['average'].iloc[index]
         print("Cluster {0} for {1} with calories {2}".format(cluster, original_category, calories))
 
-    print(clustering.n_iter_)
+def visual_clustering_by_energy(averages):
+    # the histogram of the data
 
-    """
-    clustering = AffinityPropagation().fit(
-        X=X
-    )
-    plt.figure(1)
-    plt.clf()
-    plt.imshow(Z, interpolation='nearest',
-               extent=(xx.min(), xx.max(), yy.min(), yy.max()),
-               cmap=plt.cm.Paired,
-               aspect='auto', origin='lower')
+    X = sorted(list(averages['average']))
+    print(*X)
+    plt.hist(X, bins=int(len(averages)/16))
 
-    plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
 
-    plt.ylim(y_min, y_max)
-    plt.xticks(())
-    plt.yticks(())
-    plt.show()"""
+    plt.xlabel('Energy')
+    plt.ylabel('Amount')
+    plt.xticks(range(int(X[0]), int(X[-1]), 50))
+    plt.grid(True)
+
+    plt.show()
 
 
 ds = load_dataset()
-data = None
 try:
     print("Load existing dataset")
     data = pickle.load(open("categories.p", "rb"))
+    categories, labels, averages = data
 except:
     print("Create dataset")
     data = extract_categories(dataset=ds)
+    categories, labels = data
+    averages = calculate_average_energy_per_category(
+        dataset=ds,
+        labels=labels,
+        categories=categories
+    )
+    data = categories, labels, averages
     pickle.dump(data, open("categories.p", "wb"))
 
-categories, labels = data
+# filter out categories with only 1 entry
+averages = averages[averages[2] > 1]
 
-statistical_clustering_by_energy(dataset=ds, labels=labels, categories=categories)
+statistical_clustering_by_energy(averages=averages)
+visual_clustering_by_energy(averages=averages)
