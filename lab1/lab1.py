@@ -21,7 +21,7 @@ def load_dataset(path="../../nutritions.csv"):
 
     # drop entries with empty rows
     dataset.replace('', np.nan, inplace=True)
-    dataset.dropna(inplace=True)
+    #dataset.dropna(inplace=True)
 
     return dataset
 
@@ -60,15 +60,16 @@ def calculate_average_energy_per_category(dataset, labels, categories):
         row = dataset.iloc[i]
         labels_row = labels.iloc[i]
         energy = row['Energ_Kcal']
-        for category in categories:
-            if labels_row[category]:
-                data = energy_data[category]
-                data = (
-                    data[0],
-                    data[1] + energy,
-                    data[2] + 1
-                )
-                energy_data[category] = data
+        if not np.isnan(energy):
+            for category in categories:
+                if labels_row[category]:
+                    data = energy_data[category]
+                    data = (
+                        data[0],
+                        data[1] + energy,
+                        data[2] + 1
+                    )
+                    energy_data[category] = data
     df = pd.DataFrame.from_dict(energy_data, orient='index')
     df['average'] = df[1] / df[2]
     return df
@@ -138,6 +139,7 @@ def find_statistical_correlations(dataset):
     correlations = sorted(correlations, key=lambda x: abs(x['corr']))
     print(*correlations[-4:-1])
 
+
 def find_visual_correlations(dataset):
     data = [
         go.Parcoords(
@@ -165,6 +167,11 @@ def find_visual_correlations(dataset):
     fig = go.Figure(data=data, layout=layout)
     offline.plot(fig, filename='parcoords-basic')
 
+
+def extract_sugar_free_vs_non_sugar_free(labels):
+    #sugarfree_ds = labels[labels['SUGAR FREE'] > 0]
+    print(labels.iloc[4167]['SUGAR FREE'])
+
 ds = load_dataset()
 try:
     print("Load existing dataset")
@@ -188,4 +195,6 @@ averages = averages[averages[2] > 1]
 #statistical_clustering_by_energy(averages=averages)
 #visual_clustering_by_energy(averages=averages)
 #find_statistical_correlations(dataset=ds)
-find_visual_correlations(dataset=ds)
+#find_visual_correlations(dataset=ds)
+
+extract_sugar_free_vs_non_sugar_free(labels=labels)
