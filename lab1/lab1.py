@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
+import plotly.offline as offline
+import plotly.graph_objs as go
+
 import pickle
 from sklearn.cluster import KMeans
 
@@ -129,11 +132,38 @@ def find_statistical_correlations(dataset):
                     "n1": n1,
                     "n2": n2
                 })
+                print("{0} vs {1}: {2}".format(n1, n2, corr))
                 already_done.add(n1+n2)
                 already_done.add(n2+n1)
     correlations = sorted(correlations, key=lambda x: abs(x['corr']))
     print(*correlations[-4:-1])
 
+def find_visual_correlations(dataset):
+    data = [
+        go.Parcoords(
+            line=dict(color=dataset['NDB_No'],
+                      colorscale=[[0, '#D7C16B'], [0.5, '#23D8C3'], [1, '#F3F10F']]),
+            dimensions=list([
+                dict(label='Energy', values=dataset['Energ_Kcal']),
+                dict(label='Protein', values=dataset['Protein_(g)']),
+                dict(label='Lipid', values=dataset['Lipid_Tot_(g)']),
+                dict(label='Sugar', values=dataset['Sugar_Tot_(g)']),
+                dict(label='Water', values=dataset['Water_(g)']),
+                dict(label='Folate (Total)', values=dataset['Folate_Tot_(µg)']),
+                dict(label='Folate (DFE)', values=dataset['Folate_DFE_(µg)']),
+                dict(label='Vitamin A', values=dataset['Vit_A_IU']),
+                dict(label='Beta Carot', values=dataset['Beta_Carot_(µg)']),
+            ])
+        )
+    ]
+
+    layout = go.Layout(
+        plot_bgcolor='#E5E5E5',
+        paper_bgcolor='#E5E5E5'
+    )
+
+    fig = go.Figure(data=data, layout=layout)
+    offline.plot(fig, filename='parcoords-basic')
 
 ds = load_dataset()
 try:
@@ -157,4 +187,5 @@ averages = averages[averages[2] > 1]
 
 #statistical_clustering_by_energy(averages=averages)
 #visual_clustering_by_energy(averages=averages)
-find_statistical_correlations(dataset=ds)
+#find_statistical_correlations(dataset=ds)
+find_visual_correlations(dataset=ds)

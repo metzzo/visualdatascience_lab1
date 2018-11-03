@@ -1,3 +1,4 @@
 pandas>=0.23.4
 scikit-learn>=0.20.0
 matplotlib>=3.0.1
+plotly>=3.4.0
