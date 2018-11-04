@@ -132,20 +132,35 @@ def visual_clustering_by_energy(dataset):
     plt.show()
 
 
-def find_statistical_correlations(dataset):
+def find_statistical_correlations(dataset1, dataset2):
+    if dataset2 is None:
+        dataset2 = dataset1
+
     nutritions = ["Water_(g)","Energ_Kcal","Protein_(g)","Lipid_Tot_(g)","Ash_(g)","Carbohydrt_(g)","Fiber_TD_(g)","Sugar_Tot_(g)","Calcium_(mg)","Iron_(mg)","Magnesium_(mg)","Phosphorus_(mg)","Potassium_(mg)","Sodium_(mg)","Zinc_(mg)","Copper_mg)","Manganese_(mg)","Selenium_(µg)","Vit_C_(mg)","Thiamin_(mg)","Riboflavin_(mg)","Niacin_(mg)","Panto_Acid_mg)","Vit_B6_(mg)","Folate_Tot_(µg)","Folic_Acid_(µg)","Food_Folate_(µg)","Folate_DFE_(µg)","Choline_Tot_ (mg)","Vit_B12_(µg)","Vit_A_IU","Vit_A_RAE","Retinol_(µg)","Alpha_Carot_(µg)","Beta_Carot_(µg)","Beta_Crypt_(µg)","Lycopene_(µg)","Lut+Zea_ (µg)","Vit_E_(mg)","Vit_D_µg","Vit_D_IU","Vit_K_(µg)","FA_Sat_(g)","FA_Mono_(g)","FA_Poly_(g)","Cholestrl_(mg)"]
     correlations = []
     already_done = set()
     for n1 in nutritions:
         for n2 in nutritions:
             if n1 != n2 and n1+n2 not in already_done and n2+n1 not in already_done:
-                corr = np.corrcoef(dataset[n1], dataset[n2])[0, 1]
-                correlations.append({
-                    "corr": corr,
-                    "n1": n1,
-                    "n2": n2
-                })
-                print("{0} vs {1}: {2}".format(n1, n2, corr))
+                ds1 = dataset1[n1].copy().dropna()
+                ds2 = dataset2[n2].copy().dropna()
+                if len(ds1) != len(ds2):
+                    if len(ds1) > len(ds2):
+                        # first make sure that ds1 is the bigger ds
+                        tmp = ds1
+                        ds1 = ds2
+                        ds2 = tmp
+
+                    ds2 = ds2[0:len(ds1)]
+
+                corr = np.corrcoef(ds1, ds2)[0, 1]
+                if not np.isnan(corr):
+                    correlations.append({
+                        "corr": corr,
+                        "n1": n1,
+                        "n2": n2
+                    })
+                    print("{0} vs {1}: {2}".format(n1, n2, corr))
                 already_done.add(n1+n2)
                 already_done.add(n2+n1)
     correlations = sorted(correlations, key=lambda x: abs(x['corr']))
@@ -249,8 +264,8 @@ def extract_sugar_free_vs_non_sugar_free(dataset, labels, categories):
         non_sugarfree_ds = pd.concat(datasets)
 
         pickle.dump(non_sugarfree_ds, open("sugar_free.p", "wb"))
+    find_statistical_correlations(dataset1=sugarfree_ds, dataset2=non_sugarfree_ds)
 
-    print(non_sugarfree_ds.shape)
 
 ds = load_dataset()
 try:
@@ -275,7 +290,7 @@ except:
 
 #statistical_clustering_by_energy(dataset=ds)
 #visual_clustering_by_energy(dataset=ds)
-#find_statistical_correlations(dataset=ds)
+#find_statistical_correlations(dataset1=ds)
 #find_visual_correlations(dataset=ds)
 
 extract_sugar_free_vs_non_sugar_free(dataset=ds, labels=labels, categories=categories)
