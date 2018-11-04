@@ -29,8 +29,18 @@ def load_dataset(path="../../nutritions.csv"):
 def extract_categories(dataset):
     category_set = set()
 
+    def get_single_categories(row):
+        cats = [v.strip().upper() for v in row['Shrt_Desc'].split(',') if len(v) > 0]
+        add_sugarfree = False
+        for c in cats:
+            if 'SUGAR FREE' in c and c != 'SUGAR FREE':
+                add_sugarfree = True
+        if add_sugarfree:
+            cats.append('SUGAR FREE')
+        return cats
+
     def extract_categories_per_row(row):
-        categories = row['Shrt_Desc'].split(',')
+        categories = get_single_categories(row)
         for category in categories:
             category_set.add(category)
 
@@ -42,7 +52,7 @@ def extract_categories(dataset):
     print("Create Labels")
 
     def create_labels(row):
-        local_categories = row['Shrt_Desc'].split(',')
+        local_categories = get_single_categories(row)
         data = {key: float(key in local_categories) for key in categories}
         return pd.Series(data)
 
@@ -75,14 +85,16 @@ def calculate_average_energy_per_category(dataset, labels, categories):
     return df
 
 
-def statistical_clustering_by_energy(averages):
+def statistical_clustering_by_energy(dataset):
     print("Run Clustering")
 
     # this causes K-Means to perform very badly
     #X = StandardScaler().fit_transform(labels.values)
     #print(*X[0])
+    df = dataset[['Energ_Kcal', 'Shrt_Desc']].dropna()
+    energies = df['Energ_Kcal']
 
-    X = averages['average'].values.reshape(-1,1)
+    X = energies.values.reshape(-1,1)
     clustering = KMeans(
         init='k-means++',
         n_clusters=4,
@@ -100,16 +112,16 @@ def statistical_clustering_by_energy(averages):
 
     for index, assigned_cluster in enumerate(clustering.labels_):
         cluster = clusters[assigned_cluster]
-        original_category = averages[0].iloc[index]
-        calories = averages['average'].iloc[index]
+        original_category = df.iloc[index]['Shrt_Desc']
+        calories = energies.iloc[index]
         print("Cluster {0} for {1} with calories {2}".format(cluster, original_category, calories))
 
-def visual_clustering_by_energy(averages):
+def visual_clustering_by_energy(dataset):
     # the histogram of the data
 
-    X = sorted(list(averages['average']))
+    X = sorted(list(dataset['Energ_Kcal'].dropna()))
     print(*X)
-    plt.hist(X, bins=int(len(averages)/16))
+    plt.hist(X, bins=int(len(dataset)/256))
 
 
     plt.xlabel('Energy')
@@ -168,9 +180,77 @@ def find_visual_correlations(dataset):
     offline.plot(fig, filename='parcoords-basic')
 
 
-def extract_sugar_free_vs_non_sugar_free(labels):
-    #sugarfree_ds = labels[labels['SUGAR FREE'] > 0]
-    print(labels.iloc[4167]['SUGAR FREE'])
+def extract_sugar_free_vs_non_sugar_free(dataset, labels, categories):
+    dataset = pd.concat([dataset, labels], axis=1, sort=False)
+    sugarfree_ds = dataset[dataset['SUGAR FREE'] > 0]
+    try:
+        non_sugarfree_ds = pickle.load(open("sugar_free.p", "rb"))
+    except:
+        print("Extract sugar free vs non sugar free")
+
+        relevant_categories = []
+        for c in categories:
+            if c != 'SUGAR FREE' and sugarfree_ds[c].max() > 0:
+                relevant_categories.append(c)
+        print(relevant_categories)
+
+        def filter_out_categories(ds, relevant_categories, categories, or_for_relevant=False):
+            conditions = None
+            for c in relevant_categories:
+                condition = ds[c] > 0
+
+                if conditions is None:
+                    conditions = condition
+                else:
+                    if or_for_relevant:
+                        conditions = condition | conditions
+                    else:
+                        conditions = condition & conditions
+            """
+            ds = ds[conditions]
+            conditions = None
+            for c in categories:
+                if c not in relevant_categories:
+                    condition = ds[c] < 1
+    
+                    if conditions is None:
+                        conditions = condition
+                    else:
+                        conditions = condition & conditions"""
+            ds = ds[conditions]
+            return ds
+
+        dataset = filter_out_categories(
+            ds=dataset,
+            relevant_categories=relevant_categories,
+            categories=categories,
+            or_for_relevant=True
+        )
+        print("Shape of pre-filtered dataset {0}".format(dataset.shape))
+
+        datasets = []
+        for _, sugarfree in sugarfree_ds.iterrows():
+            new_dataset = dataset.copy()
+            my_relevant_categories = []
+            for c in categories:
+                if c == 'SUGAR FREE':
+                    continue
+
+                if sugarfree[c] > 0:
+                    my_relevant_categories.append(c)
+            print("Relevant Categories {0}".format(my_relevant_categories))
+            new_dataset = filter_out_categories(
+                ds=new_dataset,
+                relevant_categories=my_relevant_categories,
+                categories=relevant_categories
+            )
+            datasets.append(new_dataset)
+
+        non_sugarfree_ds = pd.concat(datasets)
+
+        pickle.dump(non_sugarfree_ds, open("sugar_free.p", "wb"))
+
+    print(non_sugarfree_ds.shape)
 
 ds = load_dataset()
 try:
@@ -181,20 +261,21 @@ except:
     print("Create dataset")
     data = extract_categories(dataset=ds)
     categories, labels = data
-    averages = calculate_average_energy_per_category(
-        dataset=ds,
-        labels=labels,
-        categories=categories
-    )
+    averages = []
+    #averages = calculate_average_energy_per_category(
+    #    dataset=ds,
+    #    labels=labels,
+    #    categories=categories
+    #)
     data = categories, labels, averages
     pickle.dump(data, open("categories.p", "wb"))
 
 # filter out categories with only 1 entry
-averages = averages[averages[2] > 1]
+#averages = averages[averages[2] > 1]
 
-#statistical_clustering_by_energy(averages=averages)
-#visual_clustering_by_energy(averages=averages)
+#statistical_clustering_by_energy(dataset=ds)
+#visual_clustering_by_energy(dataset=ds)
 #find_statistical_correlations(dataset=ds)
 #find_visual_correlations(dataset=ds)
 
-extract_sugar_free_vs_non_sugar_free(labels=labels)
+extract_sugar_free_vs_non_sugar_free(dataset=ds, labels=labels, categories=categories)
