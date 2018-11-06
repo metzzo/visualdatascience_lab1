@@ -9,6 +9,14 @@ import plotly.graph_objs as go
 import pickle
 from sklearn.cluster import KMeans
 
+nutritions = ["Water_(g)", "Energ_Kcal", "Protein_(g)", "Lipid_Tot_(g)", "Ash_(g)", "Carbohydrt_(g)", "Fiber_TD_(g)",
+              "Sugar_Tot_(g)", "Calcium_(mg)", "Iron_(mg)", "Magnesium_(mg)", "Phosphorus_(mg)", "Potassium_(mg)",
+              "Sodium_(mg)", "Zinc_(mg)", "Copper_mg)", "Manganese_(mg)", "Selenium_(µg)", "Vit_C_(mg)", "Thiamin_(mg)",
+              "Riboflavin_(mg)", "Niacin_(mg)", "Panto_Acid_mg)", "Vit_B6_(mg)", "Folate_Tot_(µg)", "Folic_Acid_(µg)",
+              "Food_Folate_(µg)", "Folate_DFE_(µg)", "Choline_Tot_ (mg)", "Vit_B12_(µg)", "Vit_A_IU", "Vit_A_RAE",
+              "Retinol_(µg)", "Alpha_Carot_(µg)", "Beta_Carot_(µg)", "Beta_Crypt_(µg)", "Lycopene_(µg)",
+              "Lut+Zea_ (µg)", "Vit_E_(mg)", "Vit_D_µg", "Vit_D_IU", "Vit_K_(µg)", "FA_Sat_(g)", "FA_Mono_(g)",
+              "FA_Poly_(g)", "Cholestrl_(mg)"]
 
 
 def load_dataset(path="../../nutritions.csv"):
@@ -136,7 +144,6 @@ def find_statistical_correlations(dataset1, dataset2):
     if dataset2 is None:
         dataset2 = dataset1
 
-    nutritions = ["Water_(g)","Energ_Kcal","Protein_(g)","Lipid_Tot_(g)","Ash_(g)","Carbohydrt_(g)","Fiber_TD_(g)","Sugar_Tot_(g)","Calcium_(mg)","Iron_(mg)","Magnesium_(mg)","Phosphorus_(mg)","Potassium_(mg)","Sodium_(mg)","Zinc_(mg)","Copper_mg)","Manganese_(mg)","Selenium_(µg)","Vit_C_(mg)","Thiamin_(mg)","Riboflavin_(mg)","Niacin_(mg)","Panto_Acid_mg)","Vit_B6_(mg)","Folate_Tot_(µg)","Folic_Acid_(µg)","Food_Folate_(µg)","Folate_DFE_(µg)","Choline_Tot_ (mg)","Vit_B12_(µg)","Vit_A_IU","Vit_A_RAE","Retinol_(µg)","Alpha_Carot_(µg)","Beta_Carot_(µg)","Beta_Crypt_(µg)","Lycopene_(µg)","Lut+Zea_ (µg)","Vit_E_(mg)","Vit_D_µg","Vit_D_IU","Vit_K_(µg)","FA_Sat_(g)","FA_Mono_(g)","FA_Poly_(g)","Cholestrl_(mg)"]
     correlations = []
     already_done = set()
     for n1 in nutritions:
@@ -257,14 +264,64 @@ def extract_sugar_free_vs_non_sugar_free(dataset, labels, categories):
             new_dataset = filter_out_categories(
                 ds=new_dataset,
                 relevant_categories=my_relevant_categories,
-                categories=relevant_categories
+                categories=relevant_categories,
+                or_for_relevant=True
             )
-            datasets.append(new_dataset)
+            avgs = {}
+            for c in nutritions:
+                avgs[c] = new_dataset[c].mean()
+            datasets.append(pd.DataFrame(data=[avgs]))
 
         non_sugarfree_ds = pd.concat(datasets)
 
         pickle.dump(non_sugarfree_ds, open("sugar_free.p", "wb"))
+    print("Shapes Sugarfree: {0} Non-Sugarfree: {1}".format(sugarfree_ds.shape, non_sugarfree_ds.shape))
     find_statistical_correlations(dataset1=sugarfree_ds, dataset2=non_sugarfree_ds)
+    visually_compare_sugar_non_sugar(
+        sugar_ds=non_sugarfree_ds,
+        non_sugar_ds=sugarfree_ds
+    )
+
+
+def visually_compare_sugar_non_sugar(sugar_ds, non_sugar_ds):
+    def compare(columns,filename):
+        data_sugar = [sugar_ds[c].mean() for c in columns]
+        data_non_sugar = [non_sugar_ds[c].mean() for c in columns]
+        data = [
+            go.Scatterpolar(
+                r=data_sugar,
+                theta=columns,
+                fill='toself',
+                name='Sugar'
+            ),
+            go.Scatterpolar(
+                r=data_non_sugar,
+                theta=columns,
+                fill='toself',
+                name='Non-Sugar'
+            )
+        ]
+
+        layout = go.Layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 50]
+                )
+            ),
+            showlegend=False
+        )
+
+        fig = go.Figure(data=data, layout=layout)
+        offline.plot(fig, filename=filename)
+    compare(
+        columns=['Water_(g)', 'Lipid_Tot_(g)', 'Carbohydrt_(g)', 'Sodium_(mg)', 'FA_Mono_(g)', 'Energ_Kcal'],
+        filename="correlated"
+    )
+    compare(
+        columns=['Water_(g)', 'Sugar_Tot_(g)', 'Copper_mg)', 'Folate_DFE_(µg)', 'Choline_Tot_ (mg)', 'Alpha_Carot_(µg)'],
+        filename = "uncorrelated"
+    )
 
 
 ds = load_dataset()
